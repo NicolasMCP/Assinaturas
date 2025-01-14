@@ -8,7 +8,7 @@ from datetime import date, datetime
 from sqlalchemy import extract, text, func
 import time
 
-ini = time.time()
+# ini = time.time()
 
 class AssinaturasService:
     def __init__(self, motor_db):
@@ -26,7 +26,7 @@ class AssinaturasService:
             resultados = sessao.exec(consulta).all()
             return resultados
 
-    def _foi_pago(self, resultados):
+    def _is_pago(self, resultados):
         for resultado in resultados:
             if resultado.data_pagamento.month == date.today().month:
                 return True
@@ -44,7 +44,7 @@ class AssinaturasService:
             )
             resultados = sessao.exec(consulta).all()
 
-            if self._foi_pago(resultados):
+            if self._is_pago(resultados):
                 pagar_novamente = input('Esta conta já foi paga esse mês, desseja pagar novamente ? S ou N: ')
                 if not pagar_novamente.upper() == 'S':
                     return
@@ -94,7 +94,7 @@ class AssinaturasService:
             print(f"CONFIRMADO!! Empresa: {resultado.empresa} DELETADA.")
             return
     # ---------------------- version 1 ---------------------------
-    # def _os_12_meses_anteriores(self):
+    # def _ultimo_ano(self):
     #     hoje = datetime.now()
     #     ano = hoje.year
     #     mes = hoje.month
@@ -109,28 +109,49 @@ class AssinaturasService:
     #     print(ano_anterior)
 
     # ---------------------- version 2 ---------------------------
-    def _ultimos_12_meses(self):
+    def _ultimo_ano(self):
         hoje = datetime.now()
         ano, mes = hoje.year, hoje.month
-        u12_meses = [(mes - i if mes - i > 0 else 12 + (mes - i), ano if mes - i > 0 else ano - 1) for i in range(12)]
-        return u12_meses[::-1]
+        ultimo_ano = [(mes - i if mes - i > 0 else 12 + (mes - i), ano if mes - i > 0 else ano - 1) for i in range(12)]
+        return ultimo_ano[::-1]
 
-    def _valores_por_mes(self, u12_meses):
+    def _get_vals_ano(self, ultimo_ano):
         with Session(self.motor_db) as sessao:
             consulta = select(Pagamentos)
-            resultado = sessao.exec(consulta).all()
-            v12_meses = []
-            for i in u12_meses:
+            resultados = sessao.exec(consulta).all()
+            vals_ano = []
+            for myyyy in ultimo_ano:
                 valor = 0
+                for resultado in resultados:
+                    if resultado.data_pagamento.month == myyyy[0] and resultado.data_pagamento.year == myyyy[1]:
+                        valor += float(resultado.assinaturas.valor)
+                vals_ano.append(valor)
+            return vals_ano
 
-    def gerar_grafico(self):
-        u12_meses = self._ultimos_12_meses()
-        v12_meses = self._valores_por_mes(u12_meses)
+
+    def gerar_grafico(self, tipo = 'barras'):
+        ultimo_ano = self._ultimo_ano()
+        vals_ano = self._get_vals_ano(ultimo_ano)
+
+        ultimo_ano = [str(mes) + '/' + str(ano) for mes, ano in ultimo_ano]
+        import matplotlib.pyplot as plt
+        if tipo == 'barras':
+            plt.bar(ultimo_ano, vals_ano, color = '#6476D9')
+        elif tipo == 'lineas':
+            plt.plot(ultimo_ano, vals_ano, color = 'orange')
+        plt.title('Valores das assinaturas nos últimos 12 meses')
+        plt.xlabel('Mês')
+        plt.ylabel('Valores')
+
+        manager = plt.get_current_fig_manager()
+        manager.window.setGeometry(0, 0, 1280, 800)
+        # manager.window.geometry("800x600")
+        plt.show()
 
 
 ass_s = AssinaturasService(motor_db)
 
-print(ass_s._ultimos_12_meses())
+print(ass_s.gerar_grafico())
 
 # ass_s.delete(5)
 
@@ -154,5 +175,6 @@ print(ass_s._ultimos_12_meses())
 # x = int(input('id da ass. a pagar: '))
 # ass_s.pagar(ass_s_list[x - 1])
 
-fim = time.time()
-print(fim - ini)
+# Tempo usado para executar
+# fim = time.time()
+# print(fim - ini)
